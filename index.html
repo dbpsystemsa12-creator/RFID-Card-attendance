@@ -1,1 +1,346 @@
 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBP Systems | Pro Attendance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00e5ff;
+            --primary-hover: #00b4cc;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #f43f5e;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            background-image: radial-gradient(circle at top right, #1e293b, transparent);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1100px; margin: auto; }
+
+        /* Header Styles */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 20px; border-bottom: 1px solid #334155; margin-bottom: 30px;
+        }
+        
+        .brand h1 { margin: 0; font-size: 2.2em; background: linear-gradient(90deg, var(--primary), #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .brand p { margin: 0; color: var(--text-muted); font-size: 0.9em; letter-spacing: 1px; text-transform: uppercase; }
+
+        .header-controls { display: flex; gap: 15px; align-items: center; }
+        input[type="date"] {
+            padding: 10px; border-radius: 8px; border: 1px solid #334155; background: var(--bg-dark);
+            color: var(--primary); font-family: 'Poppins', sans-serif; outline: none;
+        }
+
+        button {
+            padding: 10px 20px; border-radius: 8px; border: none; font-family: 'Poppins', sans-serif;
+            font-weight: 600; cursor: pointer; transition: all 0.3s ease;
+        }
+        .btn-primary { background: var(--primary); color: #000; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.2); }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-2px); }
+        .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: #fff; }
+
+        #pending-badge {
+            background: var(--danger); color: white; padding: 2px 8px; border-radius: 12px;
+            font-size: 0.8em; margin-left: 8px; display: none;
+        }
+
+        /* Grid Layout */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+        /* Card Styles */
+        .card {
+            background: var(--card-bg); padding: 25px; border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155;
+        }
+        .card h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.4em; }
+
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 15px 10px; border-bottom: 1px solid #334155; }
+        th { color: var(--text-muted); font-weight: 400; font-size: 0.9em; text-transform: uppercase; }
+        tr:last-child td { border-bottom: none; }
+        
+        .status-present { color: var(--success); font-weight: 600; background: rgba(16, 185, 129, 0.1); padding: 5px 10px; border-radius: 6px; }
+        .status-absent { color: var(--danger); font-weight: 600; background: rgba(244, 63, 94, 0.1); padding: 5px 10px; border-radius: 6px; }
+
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); }
+        .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 500px; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .close-btn { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .close-btn:hover { color: var(--text-main); }
+        
+        .pending-item { background: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--primary); }
+        .pending-item input { width: calc(100% - 24px); padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; outline: none;}
+        .pending-item input:focus { border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">
+                <h1>DBP Systems</h1>
+                <p>Attendance Command Center</p>
+            </div>
+            <div class="header-controls">
+                <input type="date" id="date-picker">
+                <button id="open-modal-btn" class="btn-primary">
+                    Pending Scans <span id="pending-badge">0</span>
+                </button>
+                <button id="clear-btn" class="btn-danger">Wipe Day</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>✅ Present</h2>
+                <table>
+                    <thead><tr><th>Time</th><th>Name</th><th>Status</th></tr></thead>
+                    <tbody id="present-body">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>❌ Absent</h2>
+                <table>
+                    <thead><tr><th>UID</th><th>Name</th><th>Status</th></tr></thead>
+                    <tbody id="absent-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="pending-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-modal-btn">&times;</span>
+            <h2>New Cards Detected</h2>
+            <p style="color: var(--text-muted);">Assign names to unregistered cards.</p>
+            <div id="unregistered-list"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, onValue, set, push, get, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDNHx0uxTLbr7tgfngiC1loqPMxSUxTtQ8",
+            authDomain: "rfid-attendance-system-3ded1.firebaseapp.com",
+            databaseURL: "https://rfid-attendance-system-3ded1-default-rtdb.firebaseio.com",
+            projectId: "rfid-attendance-system-3ded1",
+            storageBucket: "rfid-attendance-system-3ded1.firebasestorage.app",
+            messagingSenderId: "455349965243",
+            appId: "1:455349965243:web:5583f8220f03ee522d349e"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // UI Elements
+        const presentBody = document.getElementById('present-body');
+        const absentBody = document.getElementById('absent-body');
+        const datePicker = document.getElementById('date-picker');
+        const clearBtn = document.getElementById('clear-btn');
+        
+        // Modal Elements
+        const modal = document.getElementById('pending-modal');
+        const openModalBtn = document.getElementById('open-modal-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const pendingBadge = document.getElementById('pending-badge');
+        const unregisteredList = document.getElementById('unregistered-list');
+
+        // State Variables
+        let allRegisteredUsers = {};
+        let todaysAttendance = {};
+        
+        // Setup Date Picker (Default to today)
+        const getLocalYYYYMMDD = (date) => {
+            const offset = date.getTimezoneOffset();
+            date = new Date(date.getTime() - (offset*60*1000));
+            return date.toISOString().split('T')[0];
+        };
+        
+        let currentDateStr = getLocalYYYYMMDD(new Date());
+        datePicker.value = currentDateStr;
+
+        // --- Core Logic ---
+
+        // Fetch All Registered Users
+        onValue(ref(db, 'users'), (snapshot) => {
+            allRegisteredUsers = snapshot.val() || {};
+            renderDashboard();
+        });
+
+        // Fetch Attendance for Selected Date
+        function loadAttendanceForDate(dateStr) {
+            onValue(ref(db, `attendance/${dateStr}`), (snapshot) => {
+                todaysAttendance = snapshot.val() || {};
+                renderDashboard();
+            });
+        }
+        
+        // Initial load
+        loadAttendanceForDate(currentDateStr);
+
+        // Change Date Listener
+        datePicker.addEventListener('change', (e) => {
+            currentDateStr = e.target.value;
+            loadAttendanceForDate(currentDateStr);
+        });
+
+        // Render Tables (Calculates Absentees automatically)
+        function renderDashboard() {
+            presentBody.innerHTML = "";
+            absentBody.innerHTML = "";
+
+            const presentUIDs = new Set();
+            let presentCount = 0;
+
+            // 1. Render Present Users
+            Object.values(todaysAttendance).forEach((entry) => {
+                presentUIDs.add(entry.uid);
+                presentCount++;
+                presentBody.innerHTML += `
+                    <tr>
+                        <td style="color: var(--text-muted);">${entry.time}</td>
+                        <td style="font-weight: 600;">${entry.name}</td>
+                        <td><span class="status-present">Present</span></td>
+                    </tr>`;
+            });
+
+            if (presentCount === 0) {
+                presentBody.innerHTML = "<tr><td colspan='3' style='text-align:center; color: var(--text-muted);'>No attendance records found.</td></tr>";
+            }
+
+            // 2. Calculate and Render Absent Users
+            let absentCount = 0;
+            for (const [uid, userData] of Object.entries(allRegisteredUsers)) {
+                if (!presentUIDs.has(uid)) {
+                    absentCount++;
+                    absentBody.innerHTML += `
+                        <tr>
+                            <td style="font-family: monospace; color: var(--text-muted); font-size: 0.9em;">${uid}</td>
+                            <td style="font-weight: 600;">${userData.name}</td>
+                            <td><span class="status-absent">Absent</span></td>
+                        </tr>`;
+                }
+            }
+
+            if (absentCount === 0 && Object.keys(allRegisteredUsers).length > 0) {
+                absentBody.innerHTML = "<tr><td colspan='3' style='text-align:center; color: var(--success);'>Everyone is present! 🎉</td></tr>";
+            } else if (Object.keys(allRegisteredUsers).length === 0) {
+                absentBody.innerHTML = "<tr><td colspan='3' style='text-align:center; color: var(--text-muted);'>No registered users yet.</td></tr>";
+            }
+        }
+
+        // --- Administrative Controls ---
+
+        // Secure Wipe Feature
+        clearBtn.addEventListener('click', () => {
+            const pwd = prompt(`Admin Action: Enter password to clear all attendance for ${currentDateStr}`);
+            
+            if (pwd === "dbp123") {
+                remove(ref(db, `attendance/${currentDateStr}`)).then(() => {
+                    alert(`Success: Attendance for ${currentDateStr} has been wiped.`);
+                }).catch(err => alert("Error clearing data: " + err));
+            } else if (pwd !== null) {
+                alert("Access Denied: Incorrect password.");
+            }
+        });
+
+        // --- Card Scanning & Registration Logic ---
+
+        // Listen for new scans from ESP32
+        onValue(ref(db, 'latest_scan'), async (snapshot) => {
+            const data = snapshot.val();
+            // Only process if the timestamp is recent (within last 5 seconds) to avoid processing old data on load
+            if (data && data.uid && (Date.now() - data.timestamp < 5000)) {
+                const uid = data.uid;
+                
+                // If the selected date isn't today, don't auto-log them (prevents messing up past records)
+                const todayStr = getLocalYYYYMMDD(new Date());
+                if(currentDateStr !== todayStr) return;
+
+                const userRef = ref(db, 'users/' + uid);
+                const userSnapshot = await get(userRef);
+                
+                if (userSnapshot.exists()) {
+                    // Log known user
+                    const timeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    push(ref(db, `attendance/${todayStr}`), {
+                        uid: uid, name: userSnapshot.val().name, time: timeString
+                    });
+                } else {
+                    // Send unknown to pending list
+                    set(ref(db, 'pending_cards/' + uid), { timestamp: Date.now() });
+                }
+            }
+        });
+
+        // Handle Modal and Pending Registrations
+        openModalBtn.onclick = () => modal.style.display = "block";
+        closeModalBtn.onclick = () => modal.style.display = "none";
+        window.onclick = (e) => { if (e.target == modal) modal.style.display = "none"; }
+
+        onValue(ref(db, 'pending_cards'), (snapshot) => {
+            unregisteredList.innerHTML = "";
+            let count = 0;
+            
+            if (!snapshot.exists()) {
+                unregisteredList.innerHTML = "<p style='text-align:center; color:var(--text-muted);'>No pending cards.</p>";
+                pendingBadge.style.display = "none";
+                return;
+            }
+
+            snapshot.forEach((child) => {
+                count++;
+                const uid = child.key;
+                unregisteredList.innerHTML += `
+                    <div class="pending-item" id="card-${uid}">
+                        <p style="margin-top:0; font-family:monospace; color:var(--text-muted);">UID: <span style="color:#fff;">${uid}</span></p>
+                        <input type="text" id="input-${uid}" placeholder="Enter full name">
+                        <button class="btn-primary" style="width:100%;" onclick="window.registerUser('${uid}')">Save & Register</button>
+                    </div>`;
+            });
+
+            pendingBadge.innerText = count;
+            pendingBadge.style.display = "inline-block";
+        });
+
+        // Global function so inline onclick works
+        window.registerUser = function(uid) {
+            const name = document.getElementById(`input-${uid}`).value.trim();
+            if (!name) return alert("Please enter a name");
+
+            set(ref(db, 'users/' + uid), { name: name, registeredAt: Date.now() }).then(() => {
+                remove(ref(db, 'pending_cards/' + uid));
+                
+                // Auto-log their first attendance for today
+                const todayStr = getLocalYYYYMMDD(new Date());
+                const timeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                push(ref(db, `attendance/${todayStr}`), { uid: uid, name: name, time: timeString });
+                
+                if(document.querySelectorAll('.pending-item').length <= 1) modal.style.display = "none";
+            });
+        };
+    </script>
+</body>
+</html>
