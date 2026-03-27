@@ -1,11 +1,9 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DBP | Attendance</title>
+    <title>DBP | Pro Attendance</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -17,6 +15,7 @@
             --text-muted: #94a3b8;
             --danger: #f43f5e;
             --success: #10b981;
+            --edit: #3b82f6; /* Added for the rename button */
         }
 
         body {
@@ -35,25 +34,29 @@
         .header {
             display: flex; justify-content: space-between; align-items: center;
             padding-bottom: 20px; border-bottom: 1px solid #334155; margin-bottom: 30px;
+            flex-wrap: wrap; gap: 15px;
         }
         
         .brand h1 { margin: 0; font-size: 2.2em; background: linear-gradient(90deg, var(--primary), #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .brand p { margin: 0; color: var(--text-muted); font-size: 0.9em; letter-spacing: 1px; text-transform: uppercase; }
 
-        .header-controls { display: flex; gap: 15px; align-items: center; }
+        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         input[type="date"] {
             padding: 10px; border-radius: 8px; border: 1px solid #334155; background: var(--bg-dark);
             color: var(--primary); font-family: 'Poppins', sans-serif; outline: none;
         }
 
         button {
-            padding: 10px 20px; border-radius: 8px; border: none; font-family: 'Poppins', sans-serif;
+            padding: 10px 16px; border-radius: 8px; border: none; font-family: 'Poppins', sans-serif;
             font-weight: 600; cursor: pointer; transition: all 0.3s ease;
         }
         .btn-primary { background: var(--primary); color: #000; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.2); }
         .btn-primary:hover { background: var(--primary-hover); transform: translateY(-2px); }
+        .btn-edit { background: var(--edit); color: #fff; }
+        .btn-edit:hover { background: #2563eb; transform: translateY(-2px); }
         .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
         .btn-danger:hover { background: var(--danger); color: #fff; }
+        .btn-small { padding: 6px 12px; font-size: 0.85em; }
 
         #pending-badge {
             background: var(--danger); color: white; padding: 2px 8px; border-radius: 12px;
@@ -68,6 +71,7 @@
         .card {
             background: var(--card-bg); padding: 25px; border-radius: 16px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155;
+            overflow-x: auto;
         }
         .card h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.4em; }
 
@@ -81,8 +85,8 @@
         .status-absent { color: var(--danger); font-weight: 600; background: rgba(244, 63, 94, 0.1); padding: 5px 10px; border-radius: 6px; }
 
         /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); }
-        .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 500px; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); overflow-y: auto; }
+        .modal-content { background-color: var(--card-bg); margin: 5% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 600px; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .close-btn { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .close-btn:hover { color: var(--text-main); }
         
@@ -95,11 +99,12 @@
     <div class="container">
         <div class="header">
             <div class="brand">
-                <h1>DBP</h1>
+                <h1>DBP Attendance record</h1>
                 <p>Attendance Command Center</p>
             </div>
             <div class="header-controls">
                 <input type="date" id="date-picker">
+                <button id="manage-users-btn" class="btn-edit">Manage Users</button>
                 <button id="open-modal-btn" class="btn-primary">
                     Non Registered <span id="pending-badge">0</span>
                 </button>
@@ -137,6 +142,18 @@
         </div>
     </div>
 
+    <div id="manage-users-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-manage-modal-btn">&times;</span>
+            <h2>User Management</h2>
+            <p style="color: var(--text-muted);">Rename or permanently remove registered cards.</p>
+            <table>
+                <thead><tr><th>UID</th><th>Name</th><th>Actions</th></tr></thead>
+                <tbody id="manage-users-list"></tbody>
+            </table>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getDatabase, ref, onValue, set, push, get, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
@@ -167,6 +184,11 @@
         const pendingBadge = document.getElementById('pending-badge');
         const unregisteredList = document.getElementById('unregistered-list');
 
+        const manageModal = document.getElementById('manage-users-modal');
+        const manageBtn = document.getElementById('manage-users-btn');
+        const closeManageBtn = document.getElementById('close-manage-modal-btn');
+        const manageUsersList = document.getElementById('manage-users-list');
+
         // State Variables
         let allRegisteredUsers = {};
         let todaysAttendance = {};
@@ -187,6 +209,8 @@
         onValue(ref(db, 'users'), (snapshot) => {
             allRegisteredUsers = snapshot.val() || {};
             renderDashboard();
+            // Live update the management list if it's currently open
+            if (manageModal.style.display === "block") renderManageUsers();
         });
 
         // Fetch Attendance for Selected Date
@@ -266,13 +290,61 @@
             }
         });
 
+        // --- User Management Logic (Rename/Remove) ---
+        
+        function renderManageUsers() {
+            manageUsersList.innerHTML = "";
+            if (Object.keys(allRegisteredUsers).length === 0) {
+                manageUsersList.innerHTML = "<tr><td colspan='3' style='text-align:center; color: var(--text-muted);'>No users registered.</td></tr>";
+                return;
+            }
+
+            for (const [uid, userData] of Object.entries(allRegisteredUsers)) {
+                manageUsersList.innerHTML += `
+                    <tr>
+                        <td style="font-family: monospace; color: var(--text-muted); font-size: 0.85em;">${uid}</td>
+                        <td style="font-weight: 600;">${userData.name}</td>
+                        <td style="display:flex; gap:8px;">
+                            <button onclick="window.renameUser('${uid}', '${userData.name}')" class="btn-edit btn-small">Rename</button>
+                            <button onclick="window.removeUser('${uid}', '${userData.name}')" class="btn-danger btn-small">Remove</button>
+                        </td>
+                    </tr>`;
+            }
+        }
+
+        window.renameUser = function(uid, oldName) {
+            const newName = prompt(`Enter new name for ${oldName}:`, oldName);
+            if (newName && newName.trim() !== "" && newName !== oldName) {
+                set(ref(db, `users/${uid}/name`), newName.trim());
+            }
+        };
+
+        window.removeUser = function(uid, name) {
+            const pwd = prompt(`Admin Action: Enter password to completely delete ${name} from the system:`);
+            if (pwd === "dbp123") {
+                if (confirm(`Are you absolutely sure? If they scan their card again, it will show up as Non Registered.`)) {
+                    remove(ref(db, `users/${uid}`));
+                }
+            } else if (pwd !== null) {
+                alert("Access Denied: Incorrect password.");
+            }
+        };
+
         // --- Card Scanning & Registration Logic ---
 
         // Listen for new scans from ESP32
+        let isFirstLoad = true;
+
         onValue(ref(db, 'latest_scan'), async (snapshot) => {
             const data = snapshot.val();
-            // Only process if the timestamp is recent (within last 5 seconds) to avoid processing old data on load
-            if (data && data.uid && (Date.now() - data.timestamp < 5000)) {
+            
+            // Ignore the old scan sitting in the database when the page first loads
+            if (isFirstLoad) {
+                isFirstLoad = false;
+                return; 
+            }
+
+            if (data && data.uid) {
                 const uid = data.uid;
                 
                 // If the selected date isn't today, don't auto-log them (prevents messing up past records)
@@ -295,10 +367,20 @@
             }
         });
 
-        // Handle Modal and Pending Registrations
+        // Handle Modals
         openModalBtn.onclick = () => modal.style.display = "block";
         closeModalBtn.onclick = () => modal.style.display = "none";
-        window.onclick = (e) => { if (e.target == modal) modal.style.display = "none"; }
+        
+        manageBtn.onclick = () => {
+            renderManageUsers();
+            manageModal.style.display = "block";
+        };
+        closeManageBtn.onclick = () => manageModal.style.display = "none";
+
+        window.onclick = (e) => { 
+            if (e.target == modal) modal.style.display = "none"; 
+            if (e.target == manageModal) manageModal.style.display = "none"; 
+        }
 
         onValue(ref(db, 'pending_cards'), (snapshot) => {
             unregisteredList.innerHTML = "";
